@@ -40,7 +40,7 @@ echo -e "${X}"
 # a peer doesn't cause the next add to collide with an existing one.
 
 HIGHEST=$(grep -oE "${WG_SUBNET//./\\.}\.[0-9]+/32" /etc/wireguard/wg1.conf 2>/dev/null \
-    | awk -F'[./]' '{print $4}' | sort -n | tail -1)
+    | awk -F'[./]' '{print $4}' | sort -n | tail -1 || true)
 HIGHEST=${HIGHEST:-1}  # .1 is the server itself
 CLIENT_NUM=$((HIGHEST + 1))
 if [ "$CLIENT_NUM" -lt 2 ]; then CLIENT_NUM=2; fi
