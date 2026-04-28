@@ -239,13 +239,14 @@ ok "Xray and WireGuard services started"
 # ─── Firewall ────────────────────────────────────────────────────
 
 info "Configuring firewall..."
-# Only expose the REALITY port — WireGuard stays behind REALITY
-iptables -A INPUT -p tcp --dport $XRAY_PORT -j ACCEPT
-
-# If UFW is active (e.g. from VPS hardening scripts), open the REALITY port there too
+# Prefer UFW when installed and active (rules persist across reboots).
+# Fall back to direct iptables only when UFW is not present.
 if command -v ufw &>/dev/null && ufw status | grep -q "Status: active"; then
     ufw allow "$XRAY_PORT/tcp" > /dev/null 2>&1
-    info "UFW detected — added rule for $XRAY_PORT/tcp"
+    info "UFW detected, added rule for $XRAY_PORT/tcp"
+else
+    iptables -A INPUT -p tcp --dport $XRAY_PORT -j ACCEPT
+    warn "UFW not active. Added direct iptables rule for $XRAY_PORT/tcp (will NOT persist a reboot, run a hardening script first)"
 fi
 
 # WireGuard port does NOT need to be open externally — it runs over REALITY

@@ -240,3 +240,6 @@ cat > "$CLIENT_DIR/singbox-client.json" <<SBEOF
     }
 }
 SBEOF
+
+# Defensive: ensure private.key is always 600 even if previously loosened.
+[ -f "$CLIENT_DIR/private.key" ] && chmod 600 "$CLIENT_DIR/private.key"
