@@ -87,8 +87,35 @@ ok "Server IP: $SERVER_IP"
 info "Enabling IP forwarding..."
 sysctl -q -w net.ipv4.ip_forward=1
 sysctl -q -w net.ipv6.conf.all.forwarding=1
-grep -q "net.ipv4.ip_forward" /etc/sysctl.conf || echo "net.ipv4.ip_forward = 1" >> /etc/sysctl.conf
-grep -q "net.ipv6.conf.all.forwarding" /etc/sysctl.conf || echo "net.ipv6.conf.all.forwarding = 1" >> /etc/sysctl.conf
+sysctl -q -w net.ipv6.conf.default.forwarding=1
+
+# Persist via /etc/sysctl.d. We do NOT use /etc/sysctl.conf because UFW ships
+# /etc/ufw/sysctl.conf with ip_forward=0 and silently re-applies it on every
+# reload/boot, overriding /etc/sysctl.conf without warning.
+cat > /etc/sysctl.d/99-swizguard-forwarding.conf <<EOF
+# SwizGuard requires IPv4+v6 forwarding for the WG-NAT path.
+net.ipv4.ip_forward = 1
+net.ipv6.conf.all.forwarding = 1
+net.ipv6.conf.default.forwarding = 1
+EOF
+
+# Stop UFW from undoing the above on its next reload/boot.
+if [ -f /etc/ufw/sysctl.conf ]; then
+    sed -i -E 's|^#?\s*net/ipv4/ip_forward\s*=.*|net/ipv4/ip_forward=1|' /etc/ufw/sysctl.conf
+    sed -i -E 's|^#?\s*net/ipv6/conf/default/forwarding\s*=.*|net/ipv6/conf/default/forwarding=1|' /etc/ufw/sysctl.conf
+    sed -i -E 's|^#?\s*net/ipv6/conf/all/forwarding\s*=.*|net/ipv6/conf/all/forwarding=1|' /etc/ufw/sysctl.conf
+    grep -q "^net/ipv4/ip_forward=1" /etc/ufw/sysctl.conf || echo "net/ipv4/ip_forward=1" >> /etc/ufw/sysctl.conf
+    grep -q "^net/ipv6/conf/default/forwarding=1" /etc/ufw/sysctl.conf || echo "net/ipv6/conf/default/forwarding=1" >> /etc/ufw/sysctl.conf
+    grep -q "^net/ipv6/conf/all/forwarding=1" /etc/ufw/sysctl.conf || echo "net/ipv6/conf/all/forwarding=1" >> /etc/ufw/sysctl.conf
+fi
+
+# UFW DEFAULT_FORWARD_POLICY ships as DROP. The wg-quick PostUp explicit FORWARD
+# rule handles the wg1 path, but ACCEPT here keeps UFWs status display honest
+# and avoids fighting future routed traffic.
+if [ -f /etc/default/ufw ]; then
+    sed -i 's|^DEFAULT_FORWARD_POLICY=.*|DEFAULT_FORWARD_POLICY="ACCEPT"|' /etc/default/ufw
+fi
+
 ok "IP forwarding enabled"
 
 # ─── Detect default interface ────────────────────────────────────
