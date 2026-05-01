@@ -171,19 +171,40 @@ status() {
     fi
 }
 
+# Resolve the macOS network service that owns the default route.
+# Falls back to Wi-Fi if detection fails (e.g. only Wi-Fi exists, or odd setup).
+_active_service() {
+    local iface
+    iface=\$(route -n get default 2>/dev/null | awk '/interface:/ {print \$2}')
+    if [ -z "\$iface" ]; then
+        echo "Wi-Fi"
+        return
+    fi
+    local svc=""
+    while IFS= read -r line; do
+        case "\$line" in
+            "("[0-9]*")"*) svc="\${line#*) }" ;;
+            *"Device: \$iface)"*) echo "\$svc"; return ;;
+        esac
+    done < <(networksetup -listnetworkserviceorder)
+    echo "Wi-Fi"
+}
+
 enable_system_proxy() {
     if [[ "\$OSTYPE" != "darwin"* ]]; then
         echo "[!] System proxy auto-config only supported on macOS"
         exit 1
     fi
-    echo "[*] Enabling system SOCKS + HTTP proxy on Wi-Fi..."
-    sudo networksetup -setsocksfirewallproxy "Wi-Fi" 127.0.0.1 \$SOCKS_PORT
-    sudo networksetup -setsocksfirewallproxystate "Wi-Fi" on
-    sudo networksetup -setwebproxy "Wi-Fi" 127.0.0.1 \$HTTP_PORT
-    sudo networksetup -setwebproxystate "Wi-Fi" on
-    sudo networksetup -setsecurewebproxy "Wi-Fi" 127.0.0.1 \$HTTP_PORT
-    sudo networksetup -setsecurewebproxystate "Wi-Fi" on
-    echo "[+] System proxy enabled on Wi-Fi"
+    local svc
+    svc=\$(_active_service)
+    echo "[*] Enabling system SOCKS + HTTP proxy on '\$svc'..."
+    sudo networksetup -setsocksfirewallproxy "\$svc" 127.0.0.1 \$SOCKS_PORT
+    sudo networksetup -setsocksfirewallproxystate "\$svc" on
+    sudo networksetup -setwebproxy "\$svc" 127.0.0.1 \$HTTP_PORT
+    sudo networksetup -setwebproxystate "\$svc" on
+    sudo networksetup -setsecurewebproxy "\$svc" 127.0.0.1 \$HTTP_PORT
+    sudo networksetup -setsecurewebproxystate "\$svc" on
+    echo "[+] System proxy enabled on '\$svc'"
     echo "    All browser + most app traffic now routes through SwizGuard"
 }
 
@@ -192,11 +213,13 @@ disable_system_proxy() {
         echo "[!] System proxy auto-config only supported on macOS"
         exit 1
     fi
-    echo "[*] Disabling system proxy on Wi-Fi..."
-    sudo networksetup -setsocksfirewallproxystate "Wi-Fi" off
-    sudo networksetup -setwebproxystate "Wi-Fi" off
-    sudo networksetup -setsecurewebproxystate "Wi-Fi" off
-    echo "[+] System proxy disabled"
+    local svc
+    svc=\$(_active_service)
+    echo "[*] Disabling system proxy on '\$svc'..."
+    sudo networksetup -setsocksfirewallproxystate "\$svc" off
+    sudo networksetup -setwebproxystate "\$svc" off
+    sudo networksetup -setsecurewebproxystate "\$svc" off
+    echo "[+] System proxy disabled on '\$svc'"
 }
 
 case "\${1:-start}" in
