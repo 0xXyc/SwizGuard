@@ -241,5 +241,11 @@ cat > "$CLIENT_DIR/singbox-client.json" <<SBEOF
 }
 SBEOF
 
+# Regenerate the launcher script too, so existing clients pick up upstream
+# fixes (auto-detect interface, multi-network cleanup, safety checks) without
+# requiring a fresh `swizguard add`.
+SCRIPT_BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
+bash "$SCRIPT_BASE_DIR/_generate-launcher.sh"
+
 # Defensive: ensure private.key is always 600 even if previously loosened.
 [ -f "$CLIENT_DIR/private.key" ] && chmod 600 "$CLIENT_DIR/private.key"
